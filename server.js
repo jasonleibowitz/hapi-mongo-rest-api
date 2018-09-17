@@ -2,9 +2,10 @@
 
 const Hapi = require('hapi');
 const mongoose = require('mongoose');
-const hapiAuthJWT = require('hapi-auth-jwt2');
-const jwksRsa = require('jwks-rsa');
 const DogController = require('./src/controllers/dog');
+const UserController = require('./src/controllers/user');
+
+const { validate, verifyCredentials } = require('./src/utils/auth');
 
 const MongoDBUrl = 'mongodb://localhost:27017/dogapi';
 
@@ -14,6 +15,25 @@ const server = new Hapi.Server({
 });
 
 const registerRoutes = () => {
+  server.route({
+    method: 'POST',
+    path: '/api/authenticate',
+    options: {
+      auth: false,
+      handler: UserController.authenticate,
+      pre: [{ method: verifyCredentials, assign: 'user' }],
+    }
+  });
+
+  server.route({
+    method: 'POST',
+    path: '/api/users',
+    options: {
+      auth: false,
+      handler: UserController.create,
+    }
+  })
+
   server.route({
     method: 'GET',
     path: '/api/dogs',
@@ -46,6 +66,17 @@ const registerRoutes = () => {
 }
 
 const main = async () => {
+  await server.register(require('hapi-auth-jwt2'));
+  server.auth.strategy('jwt', 'jwt', {
+    key: 'DO_THE_THING',
+    validate,
+    verifyOptions: {
+      algorithms: ['HS256'],
+    },
+  });
+
+  server.auth.default('jwt');
+
   registerRoutes();
 
   await server.start();
